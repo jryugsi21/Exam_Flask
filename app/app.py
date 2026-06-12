@@ -1,6 +1,4 @@
-from flask import Flask, jsonify
-import os
-import psycopg2
+from flask import Flask, render_template, os, psycopg2
 
 app = Flask(__name__)
 
@@ -23,36 +21,49 @@ def get_connection():
 @app.route("/")
 def home():
     status = "OK"
+    alert_class = "success"
     try:
         conn = get_connection()
         conn.close()
-    except:
-        status = "ERROR"
+    except Exception as e:
+        status = f"ERROR: No se pudo conectar a la base de datos. ({e})"
+        alert_class = "danger"
 
-    return jsonify({
-        "app_name": APP_NAME,
-        "version": APP_VERSION,
-        "db_status": status
-    })
+    # Pasamos las variables directamente a la plantilla HTML
+    return render_template(
+        "home.html",
+        app_name=APP_NAME,
+        version=APP_VERSION,
+        status=status,
+        alert_class=alert_class
+    )
 
 @app.route("/productos")
 def productos():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM productos")
-    rows = cur.fetchall()
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM productos")
+        rows = cur.fetchall()
 
-    result = []
-    for r in rows:
-        result.append({
-            "id": r[0],
-            "nombre": r[1],
-            "precio": r[2],
-            "stock": r[3]
-        })
+        result = []
+        for r in rows:
+            result.append({
+                "id": r[0],
+                "nombre": r[1],
+                "precio": r[2],
+                "stock": r[3]
+            })
 
-    conn.close()
-    return jsonify(result)
+        cur.close()
+        conn.close()
+        error = None
+    except Exception as e:
+        result = []
+        error = f"Error al consultar la base de datos: {e}"
+
+    # Pasamos la lista de productos y el error (si existe) al HTML
+    return render_template("productos.html", productos=result, error=error)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
